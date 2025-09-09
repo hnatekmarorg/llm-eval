@@ -34,7 +34,7 @@ def main():
     for prompt in sorted(glob.glob("tests/*")):
         logger.info("Evaluating {}", prompt)
         result = run_prompt(agent, prompt)
-        with open(f"output/{args.model}-{prompt.replace('tests/', '')}", "w+") as f:
+        with open(f"output/{args.model}-{prompt.replace('tests/', '')}.md", "w+") as f:
             f.write(result)
 
 
