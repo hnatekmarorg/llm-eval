@@ -1,8 +1,9 @@
 To refactor the Go code so that the scene is loaded from a YAML file, we'll need to:
 
-1. Define structs that match the YAML structure.
-2. Read and parse the YAML file using the `gopkg.in/yaml.v3` package.
-3. Construct the scene (camera and objects) based on the parsed data.
+1. Define structs that map to the YAML structure.
+2. Use a YAML parser (e.g., `gopkg.in/yaml.v3`).
+3. Read and parse the YAML file.
+4. Construct the scene accordingly.
 
 Here’s how you can do it:
 
@@ -23,6 +24,7 @@ package main
 
 import (
 	"gopkg.in/yaml.v3"
+	"image"
 	"image/png"
 	"os"
 
@@ -30,78 +32,67 @@ import (
 )
 
 // Define structs to match the YAML structure
-type YAMLVector []float64
+type Config struct {
+	Scene SceneConfig `yaml:"scene"`
+}
 
-type YAMLSphere struct {
+type SceneConfig struct {
+	Camera  CameraConfig           `yaml:"camera"`
+	Objects []map[string]ObjectCfg `yaml:"objects"`
+}
+
+type CameraConfig struct {
+	Width     int       `yaml:"width"`
+	Height    int       `yaml:"height"`
+	Direction []float64 `yaml:"direction"`
+}
+
+type ObjectCfg struct {
 	Position []float64 `yaml:"position"`
 	Radius   float64   `yaml:"radius"`
 }
 
-type YAMLObject struct {
-	Sphere *YAMLSphere `yaml:"sphere,omitempty"`
-}
-
-type YAMLCamera struct {
-	Width     int         `yaml:"width"`
-	Height    int         `yaml:"height"`
-	Direction YAMLVector  `yaml:"direction"`
-}
-
-type YAMLScene struct {
-	Camera  YAMLCamera     `yaml:"camera"`
-	Objects []YAMLObject   `yaml:"objects"`
-}
-
-func loadSceneFromFile(path string) (*YAMLScene, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var scene YAMLScene
-	err = yaml.Unmarshal(data, &scene)
-	if err != nil {
-		return nil, err
-	}
-
-	return &scene, nil
-}
-
 func main() {
-	// Load scene from YAML file (e.g., scene.yaml)
-	scene, err := loadSceneFromFile("scene.yaml")
+	// Read YAML config file
+	data, err := os.ReadFile("scene.yaml")
+	if err != nil {
+		panic(err)
+	}
+
+	var config Config
+	err = yaml.Unmarshal(data, &config)
 	if err != nil {
 		panic(err)
 	}
 
 	// Create camera
-	camera := core.Camera{
-		Width:     scene.Camera.Width,
-		Height:    scene.Camera.Height,
-		Direction: scene.Camera.Direction,
+	cam := core.Camera{
+		Width:     config.Scene.Camera.Width,
+		Height:    config.Scene.Camera.Height,
+		Direction: config.Scene.Camera.Direction,
 	}
 
-	// Convert YAML objects to RayMarchableObjects
+	// Build list of ray-marchable objects
 	var objects []core.RayMarchableObject
-	for _, obj := range scene.Objects {
-		if obj.Sphere != nil {
-			sphere := core.NewSphere(obj.Sphere.Position, obj.Sphere.Radius)
-			objects = append(objects, sphere)
+	for _, obj := range config.Scene.Objects {
+		if sphere, exists := obj["sphere"]; exists {
+			sphereObj := core.NewSphere(sphere.Position, sphere.Radius)
+			objects = append(objects, sphereObj)
 		}
-		// You can add more object types here (plane, box, etc.)
+		// You can add more object types here (e.g., "box", "plane", etc.)
 	}
 
-	// Render the image
-	image := camera.Render(objects)
+	// Render the scene
+	img := cam.Render(objects)
 
-	// Save to output.png
+	// Save image
 	f, err := os.Create("output.png")
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
 
-	err = png.Encode(f, image)
+	err = png.Encode(f, img)
 	if err != nil {
 		panic(err)
 	}
@@ -110,7 +101,7 @@ func main() {
 
 ---
 
-### ✅ Step 3: Create `scene.yaml`
+### ✅ Example `scene.yaml`
 
 ```yaml
 scene:
@@ -133,40 +124,20 @@ scene:
         radius: 0.1
 ```
 
-> ❗ Note: The top-level key `scene` isn't actually used in the struct unmarshaling unless you nest it. Since we're unmarshaling directly into `YAMLScene`, the YAML should **not** have a top-level `scene:` key.
+---
 
-So, fix the YAML by **removing the outer `scene:` key**:
+### ✅ Notes
 
-### ✅ Correct `scene.yaml` (no top-level mapping):
+- This approach is extensible: you can later add other object types (like `box`, `plane`) by checking for their keys in the `objects` list.
+- Ensure that the `core.NewSphere` function takes `[]float64` for position and `float64` for radius, as assumed here.
+- You may want to add error handling for missing fields in production.
 
-```yaml
-camera:
-  width: 512
-  height: 512
-  direction: [0, 0, 1]
-objects:
-  - sphere:
-      position: [0, 0, -2]
-      radius: 1
-  - sphere:
-      position: [1, 0, -2]
-      radius: 1
-  - sphere:
-      position: [0.5, 1, -2]
-      radius: 1
-  - sphere:
-      position: [0, 0, -0.5]
-      radius: 0.1
+---
+
+Now you can run:
+
+```bash
+go run main.go
 ```
 
----
-
-### ✅ Final Notes
-
-- You can extend the `YAMLObject` struct to support other shapes using YAML polymorphism (e.g., `type: sphere`, `type: plane`).
-- Consider adding error handling for invalid or missing fields.
-- You might want to add a CLI flag to specify the scene file path.
-
----
-
-This refactoring makes your ray tracer **data-driven** — you can now create multiple scenes just by writing new YAML files! 🎉
+And it will render the scene defined in `scene.yaml`. ✅

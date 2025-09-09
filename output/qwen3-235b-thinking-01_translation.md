@@ -1,19 +1,19 @@
 On the poplar above the lake,  
-the Water Goblin sat at twilight:  
-"Shine, little moon, shine,  
-so I can sew my thread.  
+The Water Sprite sat as evening fell:  
+"Shine, little moon, shine so bright,  
+So I can sew by your light.  
 
-I'm sewing, sewing little shoes  
-for dry land and water's flow,  
-shine, little moon, shine,  
-so I can sew my thread.  
+Sewing, sewing little shoes,  
+For dry paths and streams so slight:  
+Shine, little moon, shine so bright,  
+So I can sew by your light.  
 
-Today is Thursday, tomorrow Friday—  
-I'm sewing, sewing my little coat,  
-shine, little moon, shine,  
-so I can sew my thread.  
+Today's Thursday, tomorrow Friday—  
+Sewing, sewing my coat with glee:  
+Shine, little moon, shine so bright,  
+So I can sew by your light.  
 
-Green gown, red little boots,  
-tomorrow's my wedding day,  
-shine, little moon, shine,  
-so I can sew my thread."
+Green dress, red shoes, ready to wed,  
+Tomorrow my wedding day's ahead:  
+Shine, little moon, shine so bright,  
+So I can sew by your light."

@@ -1,34 +1,39 @@
-## Overview  
+## TL;DR
+The script is a **depth‑first flood‑fill** of a 10 × 10 chessboard using the moves of a knight.  
+Starting from the top‑left corner `(0,0)` it marks every square that can be reached by a knight, prints the board after each expansion and pauses half a second so you can watch the “infection” spread.
 
-The script is a **graph‑traversal visualiser** that explores a 10 × 10 grid using the moves of a chess knight.  
-It starts at the upper‑left corner `(0, 0)`, marks that square as visited, and then repeatedly:
-
-1. Pops a position from a *stack* (`positions` – LIFO order).  
-2. Generates all eight knight‑move candidates from that square (`knight`).  
-3. Keeps only the moves that stay inside the board and that have not been visited yet.  
-4. Marks the new squares as visited (`True` in `matrix`) and pushes them onto the stack.  
-5. Prints the whole board (`X` for visited, space for unvisited) and sleeps 0.5 s so you can watch the “growth” of the visited area.
-
-When the stack becomes empty, the loop ends – by then **every square that is reachable by a knight from the start has been visited** (on a 10×10 board that is the whole board).
-
-The program is essentially a **depth‑first flood‑fill** using knight moves, not a *knight’s tour* (it does not try to produce a Hamiltonian path).
+It works, but there are a handful of **bugs / inefficiencies**, several **style / readability** issues, and many **opportunities for extension** (BFS distance map, full knight‑tour, parametrisation, etc.).  
+Below is a detailed walk‑through, a list of problems, a set of concrete improvements, and a cleaned‑up version of the code.
 
 ---
 
-## Detailed Walk‑through  
+## 1. What the program does (high‑level)
 
-### Data structures  
+1. **Initialises** a 10×10 Boolean matrix (`False = unvisited`, `True = visited`).  
+2. **Marks** `(0,0)` as visited and puts that coordinate on a *stack* called `positions`.  
+3. Enters a loop:  
+   * Pops a coordinate `(x,y)` from the stack.  
+   * Calls `jump` → looks at the eight knight‑move destinations of `(x,y)`.  
+   * For each destination that lies inside the board **and has not been visited yet**, it marks it visited and pushes it onto the stack.  
+   * Prints the whole board (`X` = visited, space = not visited) and sleeps 0.5 s.  
+4. Loop ends when the stack is empty – i.e. when **all reachable squares have been visited**.  
 
-| Name | Type | Meaning |
-|------|------|----------|
-| `matrix` | `list[list[bool]]` (10 × 10) | `True` ⇔ square has been visited. |
-| `positions` | `list[tuple[int, int]]` | Stack of squares that still need to be expanded. |
+Because a knight’s graph on a 10×10 board is connected, the final board will be completely filled with `X`.
 
-Both structures are mutated **in‑place**; the functions also return the matrix (unnecessary, see “Redundancies”).
+---
 
-### Functions  
+## 2. Line‑by‑line explanation
 
-#### `knight(x, y)`  
+```python
+import time
+```
+Only `sleep` is used later.
+
+```python
+matrix = [[False for _ in range(10)] for _ in range(10)]
+```
+Creates a 10‑row, 10‑column list‑of‑lists.  
+*Tip:* `[[False]*10 for _ in range(10)]` is a tad faster and more idiomatic.
 
 ```python
 def knight(x: int, y: int):
@@ -43,36 +48,27 @@ def knight(x: int, y: int):
         (x - 1, y + 2),
     ]
 ```
-
-* Returns the eight possible knight destinations *without* any boundary checks.  
-* The order is the classic “clockwise” order starting from the “up‑right” move.
-
-#### `jump(matrix, x, y)`  
+Returns the **raw coordinates** of the eight possible knight jumps from `(x,y)`.  
+No bounds checking – that’s done later.
 
 ```python
 def jump(matrix, x: int, y: int):
     positions = []
     for (ox, oy) in knight(x, y):
-        if ox < 0 or oy < 0:          # cheap reject of negatives
+        if ox < 0 or oy < 0:          # filter negative indices
             continue
         try:
-            if matrix[ox][oy]:        # already visited → ignore
-                continue
-            matrix[ox][oy] = True     # mark as visited
+            if matrix[ox][oy]:
+                continue               # already visited → ignore
+            matrix[ox][oy] = True      # mark as visited
             positions.append((ox, oy))
-        except IndexError:            # out‑of‑bounds → ignore
-            pass
+        except IndexError:
+            pass                       # out‑of‑bounds on the *positive* side
     return matrix, positions
 ```
-
-* **Purpose:** expand from `(x, y)`, find all *new* squares reachable in a single knight move, mark them visited and return them.  
-* **Boundaries:**  
-  * `ox < 0 or oy < 0` handles the negative side cheaply.  
-  * The `try/except IndexError` handles the positive side (exceeding the 10‑size).  
-  * This works, but catching exceptions is slower than an explicit bounds check.  
-* **Side‑effects:** `matrix` is mutated; returning it is unnecessary.  
-
-#### `print_matrix(matrix)`  
+* What it **does**: for each legal knight move, mark the target square as visited and collect it in `positions`.  
+* What it **doesn’t**: it returns the whole matrix even though the list is mutable (the return is unnecessary).  
+* It **uses `try/except` for bounds checking** – a slower, less explicit approach.
 
 ```python
 def print_matrix(matrix):
@@ -82,220 +78,212 @@ def print_matrix(matrix):
     for row in matrix:
         print("".join([res[state] for state in row]))
 ```
-
-* Prints a blank line, a separator `##########`, then the board row‑by‑row.  
-* `X` marks visited squares, a space marks unvisited squares.  
-
-### Main loop  
+Pretty‑prints the board, prefixing each frame with a line of `#`.  
 
 ```python
 positions = [(0, 0)]
 matrix[0][0] = True
-
 while len(positions) != 0:
-    x, y = positions.pop()                # LIFO → depth‑first
+    x, y = positions.pop()
     matrix, new_positions = jump(matrix, x, y)
     print_matrix(matrix)
-    positions += new_positions             # extend stack
+    positions += new_positions
     time.sleep(0.5)
 ```
-
-* Starts with only the origin in the stack.  
-* `pop()` removes the **last** element → depth‑first traversal (a snake‑like pattern).  
-* `positions += new_positions` appends the newly discovered squares to the *right* side, preserving the LIFO nature.  
-* After each expansion the board is printed and the script pauses for half a second.  
-
-When the stack empties, **all reachable squares** (in practice: all 100 squares) have been visited, and the script terminates.
+*Initialises* the search, then repeatedly **pops** from the *stack* (LIFO → depth‑first).  
+`positions += new_positions` mutates the list in place; `extend` would be clearer.
 
 ---
 
-## Correctness  
+## 3. Correctness checklist
 
-* **Reachability:** A knight’s graph on a board ≥ 5 × 5 is *connected* – any square can be reached from any other. Hence on a 10 × 10 board the algorithm will eventually visit **every** cell.  
-* **No duplicates:** The check `if matrix[ox][oy]: continue` guarantees a square is only ever added once to `positions`.  
-* **Termination:** Because each iteration removes one square from `positions` and adds at most 8 *new* squares, the total number of iterations is bounded by the number of cells (≤ 100). Therefore the loop always ends.  
+| ✅ | Item | Comment |
+|---|------|---------|
+|✔|All squares are eventually visited|Because the knight graph on a 10×10 board is connected.|
+|✔|No square is visited twice|`matrix[ox][oy]` is set to `True` before adding to the stack.|
+|✖|Upper‑bound check missing|Only negative indices are filtered; indices `>=10` are caught by the `try/except`.|
+|✖|`jump` returns the matrix unnecessarily|`matrix` is mutable; the caller already has a reference.|
+|✖|`while len(positions) != 0` is non‑idiomatic|Prefer `while positions:`.|
+|✖|`print_matrix` builds a dictionary on every call|Can be a constant or a ternary expression.|
+|✖|Hard‑coded board size (10) appears in three places|One constant would avoid inconsistencies.|
+|✖|Variable names (`matrix`, `ox`, `oy`, `jump`) are ambiguous|`board`/`visited`, `nx`/`ny`, `explore` are clearer.|
 
-**Edge‑case sanity check:**  
-
-| Board size | Reachability from (0,0) | Expected final visited count |
-|------------|--------------------------|------------------------------|
-| 1 × 1      | Trivial (only start)     | 1 |
-| 2 × 2, 3 × 3, 4 × 4 | Knight graph **disconnected** – many squares unreachable | ≤ board size |
-| ≥ 5 × 5   | Connected                | board size (e.g., 100 for 10 × 10) |
-
-If the script were run on a 4 × 4 board it would stop early, leaving a few squares permanently `False`. No bug, just a property of the knight’s graph.
-
----
-
-## Complexity  
-
-*Let N be the number of squares (N = 100 for 10 × 10).*
-
-| Metric | Value |
-|--------|-------|
-| **Time** | Each visited cell examines up to 8 moves → **O(8 · N) = O(N)**. |
-| **Space** | `matrix` → O(N), `positions` stack → ≤ N → **O(N)**. |
-| **Extra overhead** | The `try/except` per candidate adds a small constant factor; a bounds‑check would be slightly faster. |
-| **Wall‑clock** | With `time.sleep(0.5)` and 100 iterations the visualisation takes ≈ 50 s. Removing the sleep reduces runtime to a few milliseconds. |
+None of the issues break the program for the given parameters, but they **reduce readability, maintainability, and scalability**.
 
 ---
 
-## Style & Redundancy Issues  
+## 4. Performance / Complexity
 
-| Issue | Why it matters | Simple fix |
-|-------|----------------|------------|
-| `jump` returns `matrix` even though it is mutated in‑place. | Misleads the caller into thinking a new matrix is created, adds an unnecessary tuple unpack. | Remove the return of `matrix`; just `return positions`. |
-| `try/except IndexError` for bounds. | Exceptions are expensive compared with a simple conditional test. | Replace with `if 0 <= ox < len(matrix) and 0 <= oy < len(matrix[0]): …`. |
-| Global mutable `matrix`. | Harder to test/reuse; function signatures become noisy. | Pass `matrix` explicitly (already done) and keep it local to a `if __name__ == "__main__":` block. |
-| No docstrings or type hints for `knight`, `jump`, `print_matrix`. | Reduces readability and IDE assistance. | Add `"""Generate knight moves"""` etc., and type hints (`-> List[Tuple[int, int]]`). |
-| Magic numbers (`10`). | Ties the code to a 10×10 board; makes it non‑re‑usable. | Introduce a constant `SIZE = 10` (or command‑line argument) and use it everywhere (`[[False]*SIZE for _ in range(SIZE)]`). |
-| `positions += new_positions` mutates the list while iterating over it elsewhere. | Not a bug here, but can be confusing. | Prefer `stack.extend(new_positions)`. |
-| Printing each iteration without clearing the console → long scroll. | Makes the visualisation harder to follow. | Use `os.system('cls' if os.name=='nt' else 'clear')` before each `print_matrix` or use `curses`/`rich` for smoother animation. |
-| No `__main__` guard. | If the file is imported as a module, the traversal runs automatically. | Wrap the main loop in `if __name__ == "__main__":`. |
-| No way to change start position. | Limits experimentation. | Accept start coordinates from the user or via arguments. |
-| No progress indicator / final summary. | Hard to know when it’s done without watching the prints. | After the loop, `print(f"Visited {sum(row.count(True) for row in matrix)} squares.")`. |
+* **Time:** Each square is processed once and generates up to 8 neighbour checks → **O(N)** where *N* = number of cells (≤ 100 here).  
+* **Space:** The Boolean board (`N` cells) plus the stack (worst‑case `N` entries) → **O(N)**.  
+
+The heavy part is **I/O** (`print_matrix` + `sleep`) – the algorithm itself is trivial.
 
 ---
 
-## Refactored Version (illustrative)
+## 5. Suggested Refactorings
 
-Below is a compact, more idiomatic rewrite that addresses the points above while preserving the original visual effect.
+Below is a **clean, reusable, and testable** version that addresses the above points.
 
 ```python
 #!/usr/bin/env python3
-import os
+"""
+Depth‑first flood‑fill of a rectangular board using knight moves.
+
+Features
+--------
+* Board size is a parameter.
+* Uses explicit bounds checking (no try/except for flow‑control).
+* Returns only the list of newly discovered squares.
+* Optional visualisation (delay, clearing screen, disabling output).
+* PEP‑8 compliant, fully type‑annotated.
+"""
+
+from __future__ import annotations
 import time
-from typing import List, Tuple
+from collections import deque
+from typing import List, Tuple, Iterable
 
-SIZE = 10          # board dimension
-SLEEP = 0.5        # seconds between frames
-
-
-def knight_moves(x: int, y: int) -> List[Tuple[int, int]]:
-    """All eight L‑shaped moves a knight can make from (x, y)."""
-    return [
-        (x + 1, y + 2), (x + 2, y + 1), (x + 2, y - 1), (x + 1, y - 2),
-        (x - 1, y - 2), (x - 2, y - 1), (x - 2, y + 1), (x - 1, y + 2),
-    ]
+# ----------------------------------------------------------------------
+# Configuration
+# ----------------------------------------------------------------------
+BOARD_ROWS: int = 10
+BOARD_COLS: int = 10
+VISUAL_DELAY: float = 0.5      # set to 0.0 to disable animation
+SHOW_BOARD: bool = True        # set False for head‑less runs
 
 
-def expand(board: List[List[bool]], x: int, y: int) -> List[Tuple[int, int]]:
-    """Mark all unvisited, in‑bounds knight destinations from (x, y)."""
-    new = []
-    for nx, ny in knight_moves(x, y):
-        if 0 <= nx < SIZE and 0 <= ny < SIZE and not board[nx][ny]:
-            board[nx][ny] = True
-            new.append((nx, ny))
-    return new
+# ----------------------------------------------------------------------
+# Knight move offsets – static, reused for every call
+# ----------------------------------------------------------------------
+KNIGHT_OFFSETS: Tuple[Tuple[int, int], ...] = (
+    (1, 2), (2, 1), (2, -1), (1, -2),
+    (-1, -2), (-2, -1), (-2, 1), (-1, 2),
+)
 
 
-def draw(board: List[List[bool]]) -> None:
-    """Clear the console and render the board."""
-    os.system('cls' if os.name == 'nt' else 'clear')
-    print('#' * SIZE)
+def knight_moves(row: int, col: int) -> Iterable[Tuple[int, int]]:
+    """Yield all board‑coordinates a knight can reach from (row, col)."""
+    for dr, dc in KNIGHT_OFFSETS:
+        nr, nc = row + dr, col + dc
+        if 0 <= nr < BOARD_ROWS and 0 <= nc < BOARD_COLS:
+            yield nr, nc
+
+
+def explore(board: List[List[bool]], row: int, col: int) -> List[Tuple[int, int]]:
+    """
+    Mark all *unvisited* knight‑neighbors of (row, col) as visited and
+    return the list of newly visited coordinates.
+    """
+    newly: List[Tuple[int, int]] = []
+    for nr, nc in knight_moves(row, col):
+        if not board[nr][nc]:
+            board[nr][nc] = True
+            newly.append((nr, nc))
+    return newly
+
+
+def pretty_print(board: List[List[bool]]) -> None:
+    """Print the board; X = visited, . = not visited."""
+    if not SHOW_BOARD:
+        return
+    # Clear screen on most terminals (optional)
+    print("\033[H\033[J", end="")   # ANSI escape: home + clear
+    print("#" * BOARD_COLS)
     for row in board:
-        print(''.join('X' if cell else ' ' for cell in row))
+        line = "".join("X" if cell else "." for cell in row)
+        print(line)
+    print("#" * BOARD_COLS)
 
 
-def main(start: Tuple[int, int] = (0, 0)) -> None:
-    board = [[False] * SIZE for _ in range(SIZE)]
-    sx, sy = start
-    board[sx][sy] = True
+def flood_fill_knight(
+    start: Tuple[int, int] = (0, 0),
+    *,
+    delay: float = VISUAL_DELAY,
+) -> List[List[bool]]:
+    """Run the DFS flood‑fill and return the visited matrix."""
+    rows, cols = BOARD_ROWS, BOARD_COLS
+    board = [[False] * cols for _ in range(rows)]
+    sr, sc = start
+    if not (0 <= sr < rows and 0 <= sc < cols):
+        raise ValueError("Start position out of board bounds")
 
-    stack: List[Tuple[int, int]] = [(sx, sy)]
+    board[sr][sc] = True
+    stack: List[Tuple[int, int]] = [(sr, sc)]
 
     while stack:
-        x, y = stack.pop()               # depth‑first
-        stack.extend(expand(board, x, y))
-        draw(board)
-        time.sleep(SLEEP)
+        r, c = stack.pop()            # LIFO → depth‑first
+        new = explore(board, r, c)
+        stack.extend(new)              # same as `positions += new`
+        pretty_print(board)
+        if delay:
+            time.sleep(delay)
 
-    visited = sum(row.count(True) for row in board)
-    print(f"\nDone – visited {visited}/{SIZE*SIZE} squares.")
+    return board
 
 
-if __name__ == '__main__':
-    main()
+# ----------------------------------------------------------------------
+# Entry point
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
+    flood_fill_knight()
 ```
 
-*Key changes*  
+### What changed?
 
-* `SIZE` and `SLEEP` are constants.  
-* Bounds are checked with a simple `if`.  
-* `expand` returns only the list of newly discovered squares.  
-* `draw` clears the terminal before printing, giving a true “animation”.  
-* A final summary tells you how many squares were visited.  
+| Category | Change | Why |
+|----------|--------|-----|
+| **Parameterisation** | `BOARD_ROWS`, `BOARD_COLS` constants (easy to modify) | Avoids “magic numbers”. |
+| **Bounds checking** | `knight_moves` does `0 ≤ nr < ROWS` & `0 ≤ nc < COLS` | Explicit, no exceptions for flow‑control. |
+| **Naming** | `board`, `row/col`, `explore` | Clearer intent, avoids “ox/oy”. |
+| **Return values** | `explore` returns only newly visited squares (no matrix) | `board` is mutable – no need to return it. |
+| **Pythonic idioms** | `while stack:` instead of `while len(stack) != 0` | Cleaner. |
+| **Printing** | ANSI clear‑screen + optional disabling | Prevents endless scrolling; can be turned off for benchmarking. |
+| **Visualization control** | `VISUAL_DELAY` & `SHOW_BOARD` flags | Allows head‑less runs (e.g., unit tests). |
+| **Safety** | Validation of start coordinates with a `ValueError`. | Guarantees correct usage. |
+| **PEP‑8 / type hints** | Added throughout, constants at top. | Improves readability and static analysis. |
+| **Documentation** | Module‑level docstring, inline comments. | Makes the script self‑explanatory. |
 
-Feel free to replace `stack.pop()` with `stack.pop(0)` (or use `collections.deque`) to turn the algorithm into **breadth‑first** (radial wave) instead of depth‑first.
+The algorithmic core (DFS flood‑fill) is unchanged – the refactor only **clarifies** the intent, **removes** the hidden `try/except`, and **makes the code reusable** (e.g., you can now import `flood_fill_knight` from another module).
 
 ---
 
-## Possible Extensions  
+## 6. Potential Extensions & “What‑if” Scenarios
 
-### 1.  Knight’s Tour (Hamiltonian path)  
-
-The current code does **not** try to find a path that visits every square *exactly once* without back‑tracking.  
-A classic way to do that:
-
-| Approach | Sketch |
-|----------|--------|
-| **Backtracking** | Recursively try each legal move, backtrack if you reach a dead‑end. |
-| **Warnsdorff’s heuristic** | Always move to the square with the fewest onward moves (greedy, works for most board sizes). |
-| **Divide‑and‑conquer / pattern based** | Known closed tours for even boards can be generated algorithmically. |
-
-Implementing a full tour would require:
-
-* Keeping the *order* of moves (e.g., an integer step number per cell).  
-* A recursive DFS that **unmarks** a cell on backtrack (`board[x][y] = False`).  
-* Early exit once `step == SIZE*SIZE`.  
-
-### 2.  Parameterising Board Size  
-
-Expose `SIZE` as a command‑line argument (`argparse`) so you can experiment with 5×5, 8×8, 12×12, etc.  
-Be aware that connectivity fails for sizes < 5; you can detect that and warn the user.
-
-### 3.  Visual Enhancements  
-
-* Use the **`rich`** library for coloured output (`[green]X[/]`), a progress bar, or live‑updating panels.  
-* Use **`curses`** (Unix) or **`windows-curses`** for true terminal animation without flicker.  
-* Render the board as a PNG (e.g., Pillow) and display each frame in a GUI window.  
-
-### 4.  Performance Profiling  
-
-If you strip the `time.sleep` and printing, the whole traversal finishes in < 0.01 s for a 100‑cell board.  
-You could benchmark the two bounding‑check strategies (exception vs. conditional) with `timeit` – the conditional version is ~2–3× faster.
-
-### 5.  Unit Tests  
-
-```python
-def test_knight_moves_center():
-    assert set(knight_moves(4, 4)) == {
-        (5, 6), (6, 5), (6, 3), (5, 2),
-        (3, 2), (2, 3), (2, 5), (3, 6)
-    }
-
-def test_full_coverage():
-    board = [[False]*SIZE for _ in range(SIZE)]
-    board[0][0] = True
-    stack = [(0, 0)]
-    while stack:
-        x, y = stack.pop()
-        for nx, ny in expand(board, x, y):
-            stack.append((nx, ny))
-    assert all(all(row) for row in board)  # all squares visited
-```
-
-Running these under `pytest` validates core logic independent of the visualisation.
+| Goal | How to adapt the script |
+|------|--------------------------|
+| **Shortest‑path (minimum moves) to a target square** | Replace the stack with a `deque` (BFS) and keep a `dist` matrix; stop when the target is dequeued. |
+| **Full knight’s tour (Hamiltonian path)** | Use back‑tracking or Warnsdorff’s rule (always move to the square with the fewest onward moves). |
+| **Reachability after exactly *k* moves** | Perform BFS level‑by‑level, storing the frontier for each depth. |
+| **Number of distinct ways to reach each square in *k* moves** | Dynamic programming: `ways_next = sum(ways_prev[neighbor])` for each neighbor. |
+| **Random knight walk (Monte‑Carlo simulation)** | At each step pick a random legal move; repeat many trials to estimate coverage probabilities. |
+| **Graph‑theoretic analysis** | The knight graph on an *m×n* board is bipartite (alternating colors). You can compute degree distribution, connectivity, diameter, etc. |
+| **Visualization with curses / pygame / Tkinter** | Replace the simple `print` with a real‑time GUI or a saved GIF/animation. |
+| **Performance on huge boards (e.g., 10 000 × 10 000)** | Use a `numpy` boolean array or a `bitarray` to store visited cells; avoid Python loops by vectorising neighbour generation where possible. |
+| **Command‑line interface** | Add `argparse` to expose board size, start cell, delay, BFS/DFS mode, etc. |
+| **Unit tests** | Test `knight_moves` against known neighbours, test that `explore` never returns already‑visited squares, test that `flood_fill_knight` fills the whole board for several board sizes. |
 
 ---
 
-## Summary  
+## 7. Quick sanity‑check run (original script)
 
-* The script **visualises** a depth‑first flood‑fill of a 10 × 10 board using knight moves.  
-* It is **correct** for boards ≥ 5 × 5 (the knight graph is connected).  
-* Complexity is linear in the number of squares (≈ 100) – trivial for modern hardware.  
-* Minor inefficiencies (exception handling for bounds, returning the matrix) and a lack of modularity make the code harder to reuse or extend.  
-* Refactoring can improve readability, speed, and configurability while preserving the original effect.  
-* With modest extensions you can turn the demo into a full‑featured **knight’s‑tour solver**, a parameterised explorer, or a polished terminal animation.
+```
+##########
+X         
+##########
+```
 
-Feel free to copy the refactored version above as a clean starting point for any of those directions!
+After a few iterations you’ll see the “X” pattern expanding outward in a chaotic‑looking shape until the whole 10×10 grid is filled. The half‑second pause makes it look like a spreading infection.
+
+---
+
+## 8. Bottom line
+
+*The script is a correct but **bare‑bones** demonstration of a depth‑first knight‑reachability flood‑fill.*  
+With a few modest refactors you gain:
+
+* **Readability** (clear names, explicit bounds, docstrings).  
+* **Maintainability** (board size as a constant, optional visualisation, proper return values).  
+* **Extensibility** (BFS for distances, full tour algorithms, command‑line options).  
+
+Feel free to copy the cleaned‑up version above, tweak the constants (`BOARD_ROWS`, `VISUAL_DELAY`, etc.), and experiment with the extensions listed. Happy coding!

@@ -1,15 +1,36 @@
-Below is a **complete, drop‑in replacement** for the original program that reads the whole scene (camera + objects) from a YAML file instead of being hard‑coded in Go.  
-The changes are:
-
-1. **YAML parsing** – using `gopkg.in/yaml.v3` to un‑marshal a `scene.yaml` file into Go structs.  
-2. **Typed scene description** – `CameraConfig`, `SphereConfig` (and a placeholder for other objects) map one‑to‑one to the YAML layout.  
-3. **Factory loop** – after unmarshalling we turn each config entry into the appropriate `core.RayMarchableObject` (currently only spheres).  
-4. **Better error handling** – every I/O step is checked and reported to `stderr`.  
-5. **CLI flag (optional)** – you can pass the path to the yaml file (`-scene my.yaml`), otherwise `scene.yaml` is used.
+Below is a **complete, self‑contained example** that loads a scene description from a YAML file, builds the `core.Camera` and the list of `core.RayMarchableObject`s, renders the image and writes it to `output.png`.
 
 ---
 
-## 1. `scene.yaml` – the data file
+## 1️⃣  Directory layout
+
+```
+my‑ray‑marcher/
+├─ go.mod
+├─ main.go
+└─ scene.yaml      ← your scene description
+```
+
+---
+
+## 2️⃣  `go.mod`
+
+```go
+module my-ray-marcher
+
+go 1.22   // or whatever version you use
+
+require (
+    github.com/hnatekmarorg/sunshine v0.0.0-2024xxxxxx // whatever version you use
+    gopkg.in/yaml.v3 v3.0.1
+)
+```
+
+Run `go mod tidy` after you create the file – it will fetch the YAML package.
+
+---
+
+## 3️⃣  `scene.yaml`  (you can extend it as you like)
 
 ```yaml
 scene:
@@ -17,6 +38,7 @@ scene:
     width: 512
     height: 512
     direction: [0, 0, 1]
+
   objects:
     - sphere:
         position: [0, 0, -2]
@@ -32,191 +54,230 @@ scene:
         radius: 0.1
 ```
 
-Feel free to add more objects later – just follow the same pattern (a map whose key is the object type).
+The `objects` list can contain any number of objects.  
+At the moment we only support **spheres** – adding a new type is a one‑line change (see the comment in the code).
 
 ---
 
-## 2. `go.mod`
-
-```go
-module github.com/yourname/sunshine-demo
-
-go 1.22
-
-require (
-    github.com/hnatekmarorg/sunshine v0.0.0-2024xxxxxx   // whatever version you use
-    gopkg.in/yaml.v3 v3.0.1
-)
-```
-
-Run `go mod tidy` after adding the file – the yaml module will be pulled in automatically.
-
----
-
-## 3. Refactored `main.go`
+## 4️⃣  `main.go`
 
 ```go
 package main
 
 import (
-	"flag"
 	"fmt"
 	"image/png"
+	"log"
 	"os"
 
 	"github.com/hnatekmarorg/sunshine/core"
 	"gopkg.in/yaml.v3"
 )
 
-/* --------------------------------------------------------------------------
-   1️⃣  Scene description structs – these map 1‑to‑1 to the YAML layout
-   --------------------------------------------------------------------------*/
+/* -------------------------------------------------------------------------
+   YAML → Go structures
+   -------------------------------------------------------------------------*/
 
-type Config struct {
-	Scene struct {
-		Camera  CameraConfig   `yaml:"camera"`
-		Objects []ObjectConfig `yaml:"objects"`
-	} `yaml:"scene"`
+type sceneFile struct {
+	Scene scene `yaml:"scene"`
 }
 
-// CameraConfig mirrors the YAML camera fields.
-type CameraConfig struct {
+type scene struct {
+	Camera  camConfig      `yaml:"camera"`
+	Objects []objectConfig `yaml:"objects"`
+}
+
+/*--- Camera --------------------------------------------------------------*/
+type camConfig struct {
 	Width     int       `yaml:"width"`
 	Height    int       `yaml:"height"`
-	Direction []float64 `yaml:"direction"` // must be length‑3
+	Direction []float64 `yaml:"direction"`
 }
 
-// ObjectConfig is a *union* – only one of its fields will be non‑nil after
-// unmarshalling.  Add new object types here as you need them.
-type ObjectConfig struct {
-	Sphere *SphereConfig `yaml:"sphere,omitempty"`
-	// Plane *PlaneConfig `yaml:"plane,omitempty"`   // example placeholder
+/*--- Objects -------------------------------------------------------------*/
+/*
+   Each entry in the YAML list looks like
+
+   - sphere:
+       position: [x, y, z]
+       radius:   r
+
+   The struct below has a field for every object type we want to support.
+   Only the field that matches the key in the YAML will be non‑nil after
+   unmarshalling.
+*/
+type objectConfig struct {
+	Sphere *sphereConfig `yaml:"sphere,omitempty"` // add more fields for other types
+	// Cube   *cubeConfig   `yaml:"cube,omitempty"`   // example for future extensions
 }
 
-// SphereConfig holds the data required to instantiate a core.NewSphere.
-type SphereConfig struct {
-	Position []float64 `yaml:"position"` // must be length‑3
+type sphereConfig struct {
+	Position []float64 `yaml:"position"` // must be length 3
 	Radius   float64   `yaml:"radius"`
 }
 
-/* --------------------------------------------------------------------------
-   2️⃣  Helper to load and parse the YAML file
-   --------------------------------------------------------------------------*/
+/* -------------------------------------------------------------------------
+   Helper: turn the generic object configs into core.RayMarchableObject
+   -------------------------------------------------------------------------*/
 
-func loadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
-	}
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("unmarshalling yaml: %w", err)
-	}
-	return &cfg, nil
-}
+func buildObjects(cfgs []objectConfig) []core.RayMarchableObject {
+	var objs []core.RayMarchableObject
 
-/* --------------------------------------------------------------------------
-   3️⃣  Main – glue everything together
-   --------------------------------------------------------------------------*/
-
-func main() {
-	// Optional CLI flag so the user can point at any yaml file.
-	scenePath := flag.String("scene", "scene.yaml", "path to the scene description (yaml)")
-	flag.Parse()
-
-	// 1️⃣ Load the yaml.
-	cfg, err := loadConfig(*scenePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ error loading scene: %v\n", err)
-		os.Exit(1)
-	}
-
-	// 2️⃣ Build the core.Camera from the config.
-	cam := core.Camera{
-		Width:     cfg.Scene.Camera.Width,
-		Height:    cfg.Scene.Camera.Height,
-		Direction: cfg.Scene.Camera.Direction,
-	}
-
-	// 3️⃣ Convert each object config into a core.RayMarchableObject.
-	var objects []core.RayMarchableObject
-	for i, oc := range cfg.Scene.Objects {
+	for i, cfg := range cfgs {
 		switch {
-		case oc.Sphere != nil:
-			s := core.NewSphere(oc.Sphere.Position, oc.Sphere.Radius)
-			objects = append(objects, s)
+		case cfg.Sphere != nil:
+			s := cfg.Sphere
+			if len(s.Position) != 3 {
+				log.Printf("object %d – sphere position must have 3 components, got %d – skipping",
+					i, len(s.Position))
+				continue
+			}
+			objs = append(objs, core.NewSphere(s.Position, s.Radius))
+
+		// case cfg.Cube != nil:
+		//   // future object types go here
 		default:
-			// If we ever add more object types we’ll extend this switch.
-			fmt.Fprintf(os.Stderr, "⚠️  object %d: unknown/unsupported type – skipping\n", i)
+			log.Printf("object %d – unknown object type (fields are all nil) – skipping", i)
 		}
 	}
+	return objs
+}
 
-	// 4️⃣ Render.
-	img := cam.Render(objects)
+/* -------------------------------------------------------------------------
+   Main – load YAML, build scene, render, write PNG
+   -------------------------------------------------------------------------*/
 
-	// 5️⃣ Write PNG.
+func main() {
+	// --------------------------------------------------------------
+	// 1️⃣  Load and parse the YAML file
+	// --------------------------------------------------------------
+	ymlData, err := os.ReadFile("scene.yaml")
+	if err != nil {
+		log.Fatalf("cannot read scene.yaml: %v", err)
+	}
+
+	var file sceneFile
+	if err := yaml.Unmarshal(ymlData, &file); err != nil {
+		log.Fatalf("cannot parse scene.yaml: %v", err)
+	}
+
+	// --------------------------------------------------------------
+	// 2️⃣  Build the camera from the config
+	// --------------------------------------------------------------
+	camCfg := file.Scene.Camera
+	if len(camCfg.Direction) != 3 {
+		log.Fatalf("camera.direction must contain exactly three floats, got %d", len(camCfg.Direction))
+	}
+	cam := core.Camera{
+		Width:     camCfg.Width,
+		Height:    camCfg.Height,
+		Direction: camCfg.Direction,
+	}
+
+	// --------------------------------------------------------------
+	// 3️⃣  Build the objects slice
+	// --------------------------------------------------------------
+	objs := buildObjects(file.Scene.Objects)
+
+	// --------------------------------------------------------------
+	// 4️⃣  Render
+	// --------------------------------------------------------------
+	img := cam.Render(objs)
+
+	// --------------------------------------------------------------
+	// 5️⃣  Write the PNG file
+	// --------------------------------------------------------------
 	out, err := os.Create("output.png")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ cannot create output.png: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("cannot create output.png: %v", err)
 	}
 	defer out.Close()
 
 	if err := png.Encode(out, img); err != nil {
-		fmt.Fprintf(os.Stderr, "❌ png encoding failed: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("png encode failed: %v", err)
 	}
-	fmt.Println("✅ rendered image saved as output.png")
+
+	fmt.Println("✅  Rendered image saved to output.png")
 }
 ```
 
-### What changed, step‑by‑step?
+### What changed?
 
-| Original | New |
-|----------|-----|
-| Hard‑coded `core.Camera{...}` | Populated from `cfg.Scene.Camera`. |
-| Hard‑coded slice of `core.NewSphere(...)` | Dynamically built by iterating over `cfg.Scene.Objects`. |
-| No error handling for file I/O | All I/O now returns clear messages and exits with a non‑zero status on failure. |
-| Fixed file name `output.png` | Same, but now preceded by a helpful log line. |
-| No external configuration | The program now reads `scene.yaml` (or a file passed via `-scene`). |
-
----
-
-## 4️⃣  Extending the format (future‑proof)
-
-If you later want to support more primitives (e.g. planes, boxes, meshes), just:
-
-1. Add a config struct (`type PlaneConfig struct { … }`).  
-2. Add a pointer field to `ObjectConfig` (`Plane *PlaneConfig `yaml:"plane,omitempty"`).  
-3. Add a case in the `switch` that creates the appropriate `core.New…` object.
-
-Because the YAML uses a **keyed map per object**, adding a new type never collides with existing entries.
+| Old code | New code |
+|----------|----------|
+| Camera and objects were built **hard‑coded** in Go. | A **YAML file** (`scene.yaml`) now contains the whole scene description. |
+| The list of objects was a literal `[]core.RayMarchableObject{ … }`. | We parse a slice of `objectConfig`, then turn each entry into the appropriate `core.New…` call (`buildObjects`). |
+| No external data source. | The program now **fails fast** with a clear message if the YAML is malformed or missing required fields. |
+| Adding a new object type required editing the Go source and the literal list. | To add another primitive (e.g. a cube) you only need to: <br>1. Add a struct (`cubeConfig`) and a pointer field in `objectConfig`. <br>2. Extend `buildObjects` with a case for it. <br>3. Use the new type in `scene.yaml`. No changes to the main rendering flow. |
 
 ---
 
-## 5️⃣  Running the demo
+## 5️⃣  Extending the loader (quick guide)
+
+Suppose you want to support a **cube** with fields `center: [x y z]` and `size: s`.
+
+1. **Add a Go struct**
+
+   ```go
+   type cubeConfig struct {
+       Center []float64 `yaml:"center"`
+       Size   float64   `yaml:"size"`
+   }
+   ```
+
+2. **Add a pointer field to `objectConfig`**
+
+   ```go
+   type objectConfig struct {
+       Sphere *sphereConfig `yaml:"sphere,omitempty"`
+       Cube   *cubeConfig   `yaml:"cube,omitempty"` // NEW
+   }
+   ```
+
+3. **Add a case in `buildObjects`**
+
+   ```go
+   case cfg.Cube != nil:
+       c := cfg.Cube
+       if len(c.Center) != 3 {
+           log.Printf("cube %d – center must have 3 components – skipping", i)
+           continue
+       }
+       objs = append(objs, core.NewCube(c.Center, c.Size)) // whatever API you have
+   ```
+
+4. **Use it in YAML**
+
+   ```yaml
+   - cube:
+       center: [0, -1, -3]
+       size: 2
+   ```
+
+That’s it – the loader automatically recognises the new type without any other code changes.
+
+---
+
+## 6️⃣  Running the program
 
 ```bash
-# 1️⃣  Ensure dependencies are present
-go mod tidy
-
-# 2️⃣  Build (or just run)
+# from the project root
 go run .
-# or
-go build -o render && ./render -scene scene.yaml
+# or build a binary
+go build -o raymarcher .
+./raymarcher
 ```
 
 You should see:
 
 ```
-✅ rendered image saved as output.png
+✅  Rendered image saved to output.png
 ```
 
-and `output.png` will contain exactly the same picture that the original hard‑coded program produced – but now the whole scene lives in a human‑editable YAML file.
+…and `output.png` will contain the rendered scene defined in `scene.yaml`.
 
 ---
 
 ### TL;DR
 
-*Define a Go struct that mirrors the YAML layout, unmarshal the file, build the `core.Camera` and a slice of `core.RayMarchableObject` from those structs, then render as before.*  
-The snippet above does precisely that, with clean error handling and a small CLI flag for convenience. Happy rendering!
+*Define a small set of Go structs that mirror the YAML layout, unmarshal the file, translate the generic config structs into concrete `core.NewSphere` (or other) objects, then render exactly as before.* The code above does that, is easy to extend, and keeps the rendering logic untouched. Happy ray‑marching!

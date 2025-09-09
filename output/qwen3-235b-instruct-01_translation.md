@@ -1,19 +1,19 @@
-On a treetop above the lake  
-sat the Water Goblin at twilight:  
-"Shine, little moon, shine,  
-so my thread may glow bright.
+Upon a tree above the lake,  
+a Water-Sprite sat at twilight's wake:  
+"Shine, O moon, shine bright,  
+so my thread I may stitch with light.  
 
 I'm sewing, sewing little shoes,  
-for dry land and waters to use:  
-shine, little moon, shine,  
-so my thread may glow bright.
+for dry land and for waters blue:  
+shine, O moon, shine bright,  
+so my thread I may stitch with light.  
 
-Today is Thursday, tomorrow Friday—  
-I'm sewing, sewing a little jacket:  
-shine, little moon, shine,  
-so my thread may glow bright.
+Today's Thursday, tomorrow's Friday—  
+I'm sewing, sewing my jacket gray:  
+shine, O moon, shine bright,  
+so my thread I may stitch with light.  
 
-Green dress, little red shoes,  
-tomorrow will be my wedding news:  
-shine, little moon, shine,  
-so my thread may glow bright."
+Green dress, and red shoes fine—  
+tomorrow my wedding will be mine:  
+shine, O moon, shine bright,  
+so my thread I may stitch with light."

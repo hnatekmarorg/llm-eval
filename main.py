@@ -4,9 +4,33 @@ from loguru import logger
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai import Agent
-from typing import List
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 
+def log_retry(retry_state):
+    """Callback function to log before a retry."""
+    logger.warning(
+        "Retrying '{}' (attempt {}): {}",
+        retry_state.fn.__name__,
+        retry_state.attempt_number,
+        retry_state.outcome.exception()
+    )
+
+def is_transient_error(e: Exception) -> bool:
+    """Determine if an exception should trigger a retry."""
+    transient_exceptions = (
+        ConnectionError,
+        TimeoutError,
+    )
+    return isinstance(e, transient_exceptions)
+
+@retry(
+    retry=retry_if_exception_type(),
+    stop=stop_after_attempt(500),
+    wait=wait_exponential(multiplier=1, max=10),
+    before_sleep=log_retry,
+    reraise=True
+)
 def run_prompt(agent: Agent, prompt_file: str) -> str:
     with open(prompt_file, "r") as f:
         result = agent.run_sync(f.read())

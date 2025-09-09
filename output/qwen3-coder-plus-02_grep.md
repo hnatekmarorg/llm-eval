@@ -2,37 +2,33 @@ You can extract the UUID from that GPU information using several grep and sed ap
 
 ## Method 1: Using grep with PCRE (Perl Compatible Regular Expressions)
 ```bash
-nvidia-smi -q -d GPU | grep -P 'GPU.*UUID:\s+\K.*' -o
+nvidia-smi -q -d GPU | grep -P 'UUID:\s+\K.*'
 ```
 
-## Method 2: Using grep with capturing groups
+## Method 2: Using grep with -o and regex
 ```bash
-nvidia-smi -q -d GPU | grep -o 'UUID: [^)]*' | cut -d' ' -f2
+nvidia-smi -q -d GPU | grep -oP 'UUID:\s+\K.*'
 ```
 
 ## Method 3: Using sed (most portable)
 ```bash
-nvidia-smi -q -d GPU | sed -n 's/.*UUID: \(.*\)/\1/p'
+nvidia-smi -q -d GPU | sed -n 's/.*UUID:\s*\(.*\)/\1/p'
 ```
 
-## Method 4: More specific pattern matching
+## Method 4: If you have the exact string you showed
 ```bash
-nvidia-smi -q -d GPU | grep "UUID:" | awk '{print $2}'
+echo "GPU 0: NVIDIA GeForce RTX 4060 Laptop GPU (UUID: GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53)" | grep -oP 'UUID:\s*\K.*'
 ```
 
-## Method 5: If you want just the UUID part without "UUID:"
+## Method 5: More robust approach for nvidia-smi output
 ```bash
-nvidia-smi -q -d GPU | grep "UUID:" | sed 's/.*UUID: //'
+nvidia-smi --query-gpu=uuid --format=csv,noheader,nounits | head -1
 ```
 
-The output for all methods should be:
-```
-GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53
-```
+The key points:
+- `-P` enables Perl-compatible regex
+- `\K` keeps everything after it (ignoring the "UUID:" part)
+- `.*` matches any characters
+- The `head -1` in Method 5 gets just the first UUID if multiple GPUs exist
 
-**Note:** Make sure `nvidia-smi` is installed and you have the appropriate permissions to run it. The `-q` flag provides a concise query output, and `-d GPU` specifies that you want GPU details.
-
-If you're specifically looking for GPU 0, you might also want to filter by that:
-```bash
-nvidia-smi -q -d GPU | grep -A5 -B5 "GPU 0" | grep "UUID:" | sed 's/.*UUID: //'
-```
+**Method 5** is probably the most reliable since it uses nvidia-smi's built-in query functionality specifically designed for this purpose.
