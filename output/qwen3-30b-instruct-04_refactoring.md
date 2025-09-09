@@ -1,27 +1,17 @@
-Here's a refactored version of your Go code that loads the scene from a YAML file instead of hardcoding it. We'll use `gopkg.in/yaml.v3` for YAML parsing and update the `core` package to support deserialization.
+Here's a refactored version of your Go code that loads the scene from a YAML file instead of hardcoding it. We'll use the `gopkg.in/yaml.v3` package to parse the YAML configuration.
 
 ---
 
-### ✅ Step 1: Install YAML dependency
-Make sure you have `gopkg.in/yaml.v3` installed:
-
-```bash
-go get gopkg.in/yaml.v3
-```
-
----
-
-### ✅ Step 2: Update your `main.go`
+### ✅ Updated `main.go`
 
 ```go
 package main
 
 import (
-	"fmt"
 	"github.com/hnatekmarorg/sunshine/core"
+	"gopkg.in/yaml.v3"
 	"image/png"
 	"os"
-	"gopkg.in/yaml.v3"
 )
 
 // SceneConfig represents the structure of the YAML scene file
@@ -34,10 +24,12 @@ type SceneConfig struct {
 	Objects []ObjectConfig `yaml:"objects"`
 }
 
+// ObjectConfig represents a generic object in the scene
 type ObjectConfig struct {
 	Sphere *SphereConfig `yaml:"sphere"`
 }
 
+// SphereConfig represents a sphere object
 type SphereConfig struct {
 	Position []float64 `yaml:"position"`
 	Radius   float64   `yaml:"radius"`
@@ -45,54 +37,55 @@ type SphereConfig struct {
 
 func main() {
 	// Load YAML config
-	var scene SceneConfig
 	data, err := os.ReadFile("scene.yaml")
 	if err != nil {
-		panic(fmt.Sprintf("Failed to read scene.yaml: %v", err))
-	}
-	if err := yaml.Unmarshal(data, &scene); err != nil {
-		panic(fmt.Sprintf("Failed to parse YAML: %v", err))
+		panic(err)
 	}
 
-	// Build the camera
+	var config SceneConfig
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		panic(err)
+	}
+
+	// Create camera
 	c := core.Camera{
-		Width:     scene.Camera.Width,
-		Height:    scene.Camera.Height,
-		Direction: scene.Camera.Direction,
+		Width:     config.Camera.Width,
+		Height:    config.Camera.Height,
+		Direction: config.Camera.Direction,
 	}
 
-	// Build objects
+	// Convert objects
 	var objects []core.RayMarchableObject
-	for _, obj := range scene.Objects {
+	for _, obj := range config.Objects {
 		if obj.Sphere != nil {
-			sphere := core.NewSphere(obj.Sphere.Position, obj.Sphere.Radius)
-			objects = append(objects, sphere)
+			objects = append(objects, core.NewSphere(obj.Sphere.Position, obj.Sphere.Radius))
 		}
+		// Add other object types (e.g. plane, box) here if needed
 	}
 
-	// Render the scene
+	// Render scene
 	image := c.Render(objects)
 
-	// Save to file
+	// Save image
 	f, err := os.Create("output.png")
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create output.png: %v", err))
+		panic(err)
 	}
 	defer f.Close()
 
-	if err := png.Encode(f, image); err != nil {
-		panic(fmt.Sprintf("Failed to encode PNG: %v", err))
+	err = png.Encode(f, image)
+	if err != nil {
+		panic(err)
 	}
 
-	fmt.Println("Rendered image saved as output.png")
+	println("Image saved as output.png")
 }
 ```
 
 ---
 
-### ✅ Step 3: Create `scene.yaml`
-
-Save this as `scene.yaml` in the same directory:
+### ✅ Example `scene.yaml`
 
 ```yaml
 scene:
@@ -115,13 +108,13 @@ scene:
         radius: 0.1
 ```
 
-> ✅ Note: The outer `scene:` key is not used in the struct — it's just a YAML root. We're parsing directly into `SceneConfig`, so you can remove `scene:` if you prefer, or keep it for clarity.
+> 💡 Note: The `scene:` root key is optional. If you remove it, the YAML should still parse correctly as long as the structure matches the `SceneConfig` struct. For cleaner parsing, you can also just define the config at the root level.
 
 ---
 
-### 🔧 Optional: Remove `scene:` from YAML
+### ✅ Optional: Remove `scene:` root key in YAML
 
-If you want to simplify the YAML (and match the struct exactly), use:
+If you prefer to keep it flat:
 
 ```yaml
 camera:
@@ -143,14 +136,32 @@ objects:
       radius: 0.1
 ```
 
-Then update your `SceneConfig` to remove the outer `scene:` nesting.
+Then update `SceneConfig` to remove the `scene:` wrapper:
+
+```go
+type SceneConfig struct {
+	Camera  struct { ... } `yaml:"camera"`
+	Objects []ObjectConfig `yaml:"objects"`
+}
+```
 
 ---
 
-### ✅ Final Notes
+### 📦 Dependencies
 
-- Make sure your `core` package exports `NewSphere`, `Camera`, and `RayMarchableObject`.
-- This design is extensible — you can later add `cube`, `plane`, etc., by adding new types in `ObjectConfig`.
-- Add error handling as needed (e.g. validate radius > 0, position length == 3).
+Make sure you have the YAML package installed:
 
-Let me know if you want to support multiple object types with polymorphism or more complex materials!
+```bash
+go get gopkg.in/yaml.v3
+```
+
+---
+
+### ✅ Summary
+
+- ✅ Scene is now loaded from `scene.yaml`
+- ✅ Configurable camera and objects
+- ✅ Extensible for more object types (add `Plane`, `Box`, etc.)
+- ✅ Clean separation of concerns
+
+Let me know if you'd like to support multiple object types (e.g. planes, boxes) or lighting!
