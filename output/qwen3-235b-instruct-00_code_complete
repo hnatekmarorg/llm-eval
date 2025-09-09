@@ -1,0 +1,1 @@
+return Ray{origin: origin, direction: direction}

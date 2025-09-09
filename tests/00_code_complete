@@ -1,0 +1,13 @@
+Finish following function for initializing 3D ray (write only code)
+```go
+type Ray struct {
+	origin, direction []float64
+}
+
+// t returns point based on t param
+func (r *Ray) t(t float64) []float64 {
+	return vek.Add(r.origin, vek.MulNumber(r.direction, t))
+}
+
+func (r *Ray) Init(origin []float64, direction []float64) Ray { 
+```
