@@ -4,45 +4,48 @@ To extract **only the UUID** from a line like:
 GPU 0: NVIDIA GeForce RTX 4060 Laptop GPU (UUID: GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53)
 ```
 
-You can use `grep` combined with `sed` or `awk` to extract just the UUID part.
+You can use `grep` with a regular expression and `sed` (or `grep -o` with proper pattern) to extract just the UUID.
 
-### ✅ Recommended Solution using `grep` and `sed`:
+### ✅ Recommended Command:
 
 ```bash
-echo "GPU 0: NVIDIA GeForce RTX 4060 Laptop GPU (UUID: GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53)" | \
-grep -o 'UUID: [^)]*' | sed 's/UUID: //'
+grep -o 'UUID: [^)]*' file.txt | sed 's/UUID: //'
+```
+
+Or using `grep` with Perl-compatible regex (if supported):
+
+```bash
+grep -oP 'UUID: \K[^)]*' file.txt
 ```
 
 ### 🔍 Explanation:
-- `grep -o 'UUID: [^)]*'` — extracts only the match `UUID: GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53`
-- `sed 's/UUID: //'` — removes the `UUID: ` prefix, leaving just the UUID.
 
-### ✅ Output:
+- `grep -o`: Outputs only the matched part (not the whole line).
+- `'UUID: [^)]*'`: Matches `UUID: ` followed by any characters that are not `)` — this stops at the closing parenthesis.
+- `sed 's/UUID: //'`: Removes the `UUID: ` prefix.
+- `-P` (Perl regex): Enables PCRE, and `\K` means "keep everything after this point", so it discards `UUID: `.
+
+### Example:
+
+Given input:
+```
+GPU 0: NVIDIA GeForce RTX 4060 Laptop GPU (UUID: GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53)
+```
+
+Running:
+```bash
+grep -oP 'UUID: \K[^)]*' <<< "GPU 0: NVIDIA GeForce RTX 4060 Laptop GPU (UUID: GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53)"
+```
+
+Output:
 ```
 GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53
 ```
 
----
-
-### Alternative: Pure `grep` with Perl-compatible regex (if supported):
-
+### ✅ Final Answer (cleanest):
 ```bash
-echo "GPU 0: NVIDIA GeForce RTX 4060 Laptop GPU (UUID: GPU-f0f6d00d-5367-e890-eea9-e568a84a7d53)" | \
-grep -oP 'UUID: \K[^)]*'
+grep -oP 'UUID: \K[^)]*' file.txt
 ```
 
-- `-P` enables Perl-compatible regex.
-- `\K` means "keep everything after this point", so it drops `UUID: ` and keeps the UUID.
-
----
-
-### Final Tip:
-If you're processing output from `nvidia-smi`, you can do:
-
-```bash
-nvidia-smi --query-gpu=index,uuid --format=csv,noheader,nounits | grep "GPU 0"
-```
-
-But if you're parsing raw output, the `grep` + `sed` or `grep -P` method above is perfect.
-
-Let me know if you want to extract from a file or multiple GPUs!
+> ✅ This gives you **only the UUID** as output.  
+> ⚠️ Make sure your `grep` supports `-P` (e.g., GNU grep on Linux). On macOS, use `pcregrep` or install `grep` via Homebrew.

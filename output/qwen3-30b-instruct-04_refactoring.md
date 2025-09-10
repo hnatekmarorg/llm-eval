@@ -1,4 +1,4 @@
-Here's a refactored version of your Go code that loads the scene from a YAML file instead of hardcoding it. We'll use the `gopkg.in/yaml.v3` package to parse the YAML configuration.
+Here's a refactored version of your Go program that loads the scene from a YAML file instead of hardcoding it. We'll use the `gopkg.in/yaml.v3` package to parse the YAML configuration.
 
 ---
 
@@ -21,22 +21,11 @@ type SceneConfig struct {
 		Height    int      `yaml:"height"`
 		Direction []float64 `yaml:"direction"`
 	} `yaml:"camera"`
-	Objects []ObjectConfig `yaml:"objects"`
-}
-
-// ObjectConfig represents a generic object in the scene
-type ObjectConfig struct {
-	Sphere *SphereConfig `yaml:"sphere"`
-}
-
-// SphereConfig represents a sphere object
-type SphereConfig struct {
-	Position []float64 `yaml:"position"`
-	Radius   float64   `yaml:"radius"`
+	Objects []yaml.Node `yaml:"objects"`
 }
 
 func main() {
-	// Load YAML config
+	// Load YAML file
 	data, err := os.ReadFile("scene.yaml")
 	if err != nil {
 		panic(err)
@@ -55,13 +44,29 @@ func main() {
 		Direction: config.Camera.Direction,
 	}
 
-	// Convert objects
+	// Parse objects
 	var objects []core.RayMarchableObject
-	for _, obj := range config.Objects {
-		if obj.Sphere != nil {
-			objects = append(objects, core.NewSphere(obj.Sphere.Position, obj.Sphere.Radius))
+	for _, objNode := range config.Objects {
+		var objMap map[string]yaml.Node
+		if err := objNode.Decode(&objMap); err != nil {
+			panic(err)
 		}
-		// Add other object types (e.g. plane, box) here if needed
+
+		for objType, node := range objMap {
+			switch objType {
+			case "sphere":
+				var sphereData struct {
+					Position []float64 `yaml:"position"`
+					Radius   float64   `yaml:"radius"`
+				}
+				if err := node.Decode(&sphereData); err != nil {
+					panic(err)
+				}
+				objects = append(objects, core.NewSphere(sphereData.Position, sphereData.Radius))
+			default:
+				panic("unknown object type: " + objType)
+			}
+		}
 	}
 
 	// Render scene
@@ -74,12 +79,11 @@ func main() {
 	}
 	defer f.Close()
 
-	err = png.Encode(f, image)
-	if err != nil {
+	if err := png.Encode(f, image); err != nil {
 		panic(err)
 	}
 
-	println("Image saved as output.png")
+	println("Rendered image saved to output.png")
 }
 ```
 
@@ -108,48 +112,11 @@ scene:
         radius: 0.1
 ```
 
-> 💡 Note: The `scene:` root key is optional. If you remove it, the YAML should still parse correctly as long as the structure matches the `SceneConfig` struct. For cleaner parsing, you can also just define the config at the root level.
-
 ---
 
-### ✅ Optional: Remove `scene:` root key in YAML
+### ✅ Required Dependencies
 
-If you prefer to keep it flat:
-
-```yaml
-camera:
-  width: 512
-  height: 512
-  direction: [0, 0, 1]
-objects:
-  - sphere:
-      position: [0, 0, -2]
-      radius: 1
-  - sphere:
-      position: [1, 0, -2]
-      radius: 1
-  - sphere:
-      position: [0.5, 1, -2]
-      radius: 1
-  - sphere:
-      position: [0, 0, -0.5]
-      radius: 0.1
-```
-
-Then update `SceneConfig` to remove the `scene:` wrapper:
-
-```go
-type SceneConfig struct {
-	Camera  struct { ... } `yaml:"camera"`
-	Objects []ObjectConfig `yaml:"objects"`
-}
-```
-
----
-
-### 📦 Dependencies
-
-Make sure you have the YAML package installed:
+Make sure you have the YAML parser installed:
 
 ```bash
 go get gopkg.in/yaml.v3
@@ -157,11 +124,12 @@ go get gopkg.in/yaml.v3
 
 ---
 
-### ✅ Summary
+### ✅ Notes
 
-- ✅ Scene is now loaded from `scene.yaml`
-- ✅ Configurable camera and objects
-- ✅ Extensible for more object types (add `Plane`, `Box`, etc.)
-- ✅ Clean separation of concerns
+- This assumes `core.NewSphere` takes `[]float64` and `float64` as arguments.
+- The `yaml.Node` approach allows us to handle dynamic object types (e.g., `sphere`, `plane`, etc.) in the future.
+- You can easily extend this to support more shapes (like planes, boxes) by adding more `case` blocks.
 
-Let me know if you'd like to support multiple object types (e.g. planes, boxes) or lighting!
+---
+
+Let me know if you'd like to support more object types or use a different structure (e.g., `type: sphere`, `params: {...}`) for cleaner parsing!
