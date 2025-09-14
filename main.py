@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from loguru import logger
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -55,10 +56,13 @@ def main():
     )
 
     import glob
+    import os
     for prompt in sorted(glob.glob("tests/*")):
         logger.info("Evaluating {}", prompt)
         result = run_prompt(agent, prompt)
-        with open(f"output/{args.model}-{prompt.replace('tests/', '')}.md", "w+") as f:
+        output_dir = os.path.join("output", args.model)
+        os.makedirs(output_dir, exist_ok=True)
+        with open(os.path.join(output_dir, f"{prompt.replace('tests/', '')}.md"), "w+") as f:
             f.write(result)
 
 

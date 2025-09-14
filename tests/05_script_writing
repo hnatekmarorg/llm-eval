@@ -1,0 +1,88 @@
+I have script that generates following output
+```
+tree output                                                                                                                                                                     martin@charon
+output
+├── glm-4-5-air-00_code_complete.md
+├── glm-4-5-air-01_translation.md
+├── glm-4-5-air-02_grep.md
+├── glm-4-5-air-03_code_analysis.md
+├── glm-4-5-air-04_refactoring.md
+├── gpt-oss
+│   ├── 00_code_complete.md
+│   ├── 01_translation.md
+│   ├── 02_grep.md
+│   ├── 03_code_analysis.md
+│   └── 04_refactoring.md
+├── gpt-oss-00_code_complete.md
+├── gpt-oss-01_translation.md
+├── gpt-oss-02_grep.md
+├── gpt-oss-03_code_analysis.md
+├── gpt-oss-04_refactoring.md
+├── hunyuan-a13b-instruct-00_code_complete.md
+├── hunyuan-a13b-instruct-01_translation.md
+├── hunyuan-a13b-instruct-02_grep.md
+├── hunyuan-a13b-instruct-03_code_analysis.md
+├── hunyuan-a13b-instruct-04_refactoring.md
+├── llama-3-3-nemotron-super
+│   ├── 00_code_complete.md
+│   ├── 01_translation.md
+│   ├── 02_grep.md
+│   ├── 03_code_analysis.md
+│   └── 04_refactoring.md
+├── llama-3-3-nemotron-super-q6
+│   ├── 00_code_complete.md
+│   ├── 01_translation.md
+│   ├── 02_grep.md
+│   ├── 03_code_analysis.md
+│   └── 04_refactoring.md
+├── qwen2-32b-vl
+│   ├── 00_code_complete.md
+│   ├── 01_translation.md
+│   ├── 02_grep.md
+│   ├── 03_code_analysis.md
+│   └── 04_refactoring.md
+├── qwen3-235b-instruct-00_code_complete.md
+├── qwen3-235b-instruct-01_translation.md
+├── qwen3-235b-instruct-02_grep.md
+├── qwen3-235b-instruct-03_code_analysis.md
+├── qwen3-235b-instruct-04_refactoring.md
+├── qwen3-235b-thinking-00_code_complete.md
+├── qwen3-235b-thinking-01_translation.md
+├── qwen3-235b-thinking-02_grep.md
+├── qwen3-235b-thinking-03_code_analysis.md
+├── qwen3-235b-thinking-04_refactoring.md
+├── qwen3-30b-instruct-00_code_complete.md
+├── qwen3-30b-instruct-01_translation.md
+├── qwen3-30b-instruct-02_grep.md
+├── qwen3-30b-instruct-03_code_analysis.md
+├── qwen3-30b-instruct-04_refactoring.md
+├── qwen3-30b-thinking-00_code_complete.md
+├── qwen3-30b-thinking-01_translation.md
+├── qwen3-30b-thinking-02_grep.md
+├── qwen3-30b-thinking-03_code_analysis.md
+├── qwen3-30b-thinking-04_refactoring.md
+├── qwen3:4b-q8_0
+│   ├── 00_code_complete.md
+│   ├── 01_translation.md
+│   ├── 02_grep.md
+│   ├── 03_code_analysis.md
+│   └── 04_refactoring.md
+├── qwen3:8b
+│   ├── 00_code_complete.md
+│   ├── 01_translation.md
+│   ├── 02_grep.md
+│   ├── 03_code_analysis.md
+│   └── 04_refactoring.md
+├── qwen3-coder-plus-00_code_complete.md
+├── qwen3-coder-plus-01_translation.md
+├── qwen3-coder-plus-02_grep.md
+├── qwen3-coder-plus-03_code_analysis.md
+└── qwen3-coder-plus-04_refactoring.md
+```
+Old output was flat file structure that was in form “<model-name>-<test-case>.md“  New structure create folder for each model and inserts test cases there
+I'd like you to write python script that converts all old structureds output to new ones it should:
+*   have —dry-run-flag
+    
+*   log each action via logging submodule
+    
+*   not change existing new structure outputs
